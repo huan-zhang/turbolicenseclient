@@ -1,0 +1,56 @@
+<project default="final">
+	<property name="src.dir" value="src"/>
+    <property name="build.dir" value="build"/> 
+	<property name="lib.dir" value="lib" />
+	<property name="dist.dir" value="dist" />
+	
+	<path id="compile.classpath">
+		<pathelement path="lib" />
+		<fileset dir="${lib.dir}" >
+			<include name= "*.jar" />
+		</fileset>
+	</path>
+	
+    <target name="clean">
+    	<delete dir="${build.dir}"/>
+    	<delete dir="${dist.dir}"/>
+    	<delete dir="${signed.dir}"/>
+    </target>
+	
+	<target name="mkdirs">
+		<mkdir dir="${build.dir}"/>
+		<mkdir dir="${dist.dir}"/>
+	</target>
+	<target name="copylibfiles">
+		<copy todir="${build.dir}" overwrite="true">
+			<fileset dir="${lib.dir}">
+				<include name="**/*.jar"/>
+			</fileset>
+		</copy>
+	</target>
+	<target name="compile" >
+		<javac 
+			srcdir="${src.dir}" 
+			destdir="${build.dir}" 
+			includeantruntime="false" 
+			classpathref="compile.classpath" 
+			debug="on"
+			source="1.6"
+			target="1.6"
+		/>	
+	</target>
+	<target name="dist" depends="compile" description="generate the distribution" >
+		<jar jarfile="${dist.dir}/turbo-license-client.jar" basedir="${build.dir}"/>
+	</target>
+
+	<target name="final">
+		<antcall target="clean"/>
+		<antcall target="mkdirs"/>
+		<!--<antcall target="compile"/>-->
+		<antcall target="compile"/>
+		<antcall target="dist" />
+	</target>
+	
+	
+
+</project>

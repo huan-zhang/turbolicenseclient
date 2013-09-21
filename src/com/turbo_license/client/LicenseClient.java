@@ -1,0 +1,212 @@
+package com.turbo_license.client;
+import java.awt.*;
+import java.applet.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.LineNumberReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.URL;
+import java.net.URLConnection;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.AllPermission;
+import java.security.KeyFactory;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.HashMap;
+
+import javax.crypto.Cipher;
+
+
+
+
+// Tells the applet you will be using the ActionListener methods.
+
+public class LicenseClient extends Applet {
+	
+	static final String URL = "http://localhost:8080/jrg/CommonAjax?function=verifyLicense";
+	
+	public void paint(Graphics g){
+		g.drawString("Welcome in kkk Applet.",40,20);
+	}
+	
+	public String getResponse(String vLicense, String vCpuSerial) {
+		final String urlStr = URL + "&license=" + vLicense + "&identifier=" + vCpuSerial;
+		Permissions permissions = new Permissions();
+    	permissions.add(new AllPermission());
+    	AccessControlContext context = new AccessControlContext(new ProtectionDomain[]{new ProtectionDomain(null, permissions)});
+    	
+    	String result = (String) AccessController.doPrivileged(new PrivilegedAction<Object>() {
+	        public Object run() {
+	        	String result = "";
+	        	try {
+	        		URL url = new URL(urlStr); 
+	    			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+	    			// Setup HTTP POST parameters
+	    		    connection.setRequestMethod("POST");
+	    			connection.setDoOutput(true);
+	    			connection.setDoInput(true);
+	    			connection.setUseCaches(false);
+	    			result = readURLConnection(connection);
+	               
+	       	 	} catch (Exception e) {
+	       	 		result = "failed to verify license: ";
+	       	 		System.err.println("failed to verify license: " + e.getMessage());
+	       	 	}
+	        	return result;
+	        }
+	    }, context);
+    	return result;
+	}
+	
+	public String getLocalMAC() {
+		Permissions permissions = new Permissions();
+    	permissions.add(new AllPermission());
+    	AccessControlContext context = new AccessControlContext(new ProtectionDomain[]{new ProtectionDomain(null, permissions)});
+    	
+    	String result = (String) AccessController.doPrivileged(new PrivilegedAction<Object>() {
+	        public Object run() {
+	        	String result = "";
+	        	try {
+	        		InetAddress ip = InetAddress.getLocalHost();
+	        		String mac = getMACAddress(ip.getHostAddress());
+	        		result = ip.getHostAddress();
+	       	 	} catch (Exception e) {
+	       	 		result = "failed to verify license: ";
+	       	 		System.err.println("failed to verify license: " + e.getMessage());
+	       	 	}
+	        	return result;
+	        }
+	    }, context);
+    	return result;
+	}
+	
+	/************************************************************************************************************
+	 * This method read all of the data from a URL connection to a String
+	 ************************************************************************************************************/
+	private static String readURLConnection(URLConnection uc) throws Exception {
+		StringBuffer buffer = new StringBuffer();
+		BufferedReader reader = null;
+		try	{
+			reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
+			int letter = 0;
+			while ((letter = reader.read()) != -1)
+				buffer.append((char) letter);
+		} catch (Exception e) {
+			System.out.println("Cannot read from URL" + e.toString());
+			throw e;
+		} finally {
+			try {
+				reader.close();
+			} catch (IOException io) {
+				System.out.println("Error closing URLReader!");
+				throw io;
+			}
+		}
+		return buffer.toString();
+	} 
+	
+	private String getMACAddress (String ipAddress) { 
+		String str = "", strMAC = "", macAddress = ""; 
+		try { 
+			Process pp = Runtime.getRuntime().exec("nbtstat-a" + ipAddress); 
+			InputStreamReader ir = new InputStreamReader (pp.getInputStream ()); 
+			LineNumberReader input = new LineNumberReader (ir); 
+			for (int i = 1; i < 100; i ++) {
+				str = input.readLine(); 
+				if (str != null) { 
+					if (str.indexOf("MAC Address") > 1) { 
+						strMAC = str.substring(str.indexOf("MAC Address") + 14, str.length ()); 
+						break; 
+					} 
+				} 
+		  	}
+		} catch (IOException ex) {
+			return "Can't Get MAC Address!"; 
+		} 
+		if (strMAC.length () <17) { 
+			return "Error!"; 
+		} 
+		macAddress = strMAC.substring(0, 2) + ":" 
+	  		+ strMAC.substring(3, 5) + ":" 
+	  		+ strMAC.substring(6,8) + ":" 
+	  		+ strMAC.substring(9, 11) + ":" 
+	  		+ strMAC.substring(12, 14) + ":" 
+	  		+ strMAC.substring(15, 17); 
+		return macAddress; 
+	}
+	
+	public String decryptLicense(String path, String filename) {
+		final String publicKeyFile = path + "/" + filename + ".public.key";
+		final String encryptedLicenseFile = path + "/" + filename + ".license";
+
+
+		Permissions permissions = new Permissions();
+    	permissions.add(new AllPermission());
+    	AccessControlContext context = new AccessControlContext(new ProtectionDomain[]{new ProtectionDomain(null, permissions)});
+    	
+    	String result = (String) AccessController.doPrivileged(new PrivilegedAction<Object>() {
+	        public Object run() {
+	        	String result = "";
+	        	try {
+	        		byte[] pubBytes = readFileToBytes(publicKeyFile);
+	        		byte[] encryptedLicenseBytes = readFileToBytes(encryptedLicenseFile);
+	        		byte[] b = Base64.base64Encode(encryptedLicenseBytes);
+			        //cipher.init(Cipher.DECRYPT_MODE, privateKey);
+			        PublicKey DPublicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubBytes));
+
+				    Cipher cipher = Cipher.getInstance("RSA");
+			        cipher.init(Cipher.DECRYPT_MODE, DPublicKey);
+			        try {
+			            byte[] decryptedData = cipher.doFinal(Base64.base64Decode(b));
+			            result = new String(decryptedData);
+			        } catch (Exception e1) {
+			            System.err.println("Decrypt error: " + e1.getMessage() );
+			        }
+	       	 	} catch (Exception e) {
+	       	 		result = "failed to verify license: ";
+	       	 		System.err.println("failed to verify license: " + e.getMessage());
+	       	 	}
+	        	return result;
+	        }
+	    }, context);
+    	return result;
+	}
+	
+	private byte[] readFileToBytes(String filename) {
+		File file = new File(filename);
+		try {
+		    FileInputStream fin = new FileInputStream(file);
+		    byte fileContent[] = new byte[(int)file.length()];
+		    fin.read(fileContent);
+		    String strFileContent = new String(fileContent); 
+		    System.out.println("File content : ");
+		    System.out.println(strFileContent);
+		    return fileContent;
+	    } catch(FileNotFoundException e) {
+	    	System.out.println("File not found" + e);
+	    } catch(IOException ioe) {
+	    	System.out.println("Exception while reading the file " + ioe);
+	    }
+	    return null;
+	}
+	
+	public HashMap<String, String> getLicenseInfo(String licenseStr) {
+		
+		HashMap<String, String> result = new HashMap();
+		if (!"".equals(licenseStr)) {
+			String[] infoArr = licenseStr.split("|");
+			result.put("license_keycode", infoArr[0]);
+		}
+		return result;
+	}
+} // end of applet
